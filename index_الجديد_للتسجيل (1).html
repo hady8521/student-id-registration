@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>تسجيل بيانات الهوية الوطنية للطلاب</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f7f4;font-family:Arial,"Tahoma",sans-serif;color:#17301f}
+.wrap{max-width:560px;margin:auto;padding:20px 14px 40px}
+.card{background:#fff;border-radius:22px;padding:22px;box-shadow:0 8px 30px #00000012}
+h1{font-size:24px;text-align:center;margin:5px 0 8px}
+.sub{text-align:center;color:#64756a;margin:0 0 22px}
+label{display:block;font-weight:700;margin:14px 0 7px}
+input,select,button{width:100%;min-height:50px;border-radius:12px;border:1px solid #cbd7cf;padding:12px;font-size:17px}
+input[readonly]{background:#f2f5f3}
+button{border:0;background:#166534;color:#fff;font-weight:700;cursor:pointer;margin-top:16px}
+button:disabled{opacity:.55}
+.msg{display:none;padding:12px;border-radius:12px;margin-top:14px;text-align:center;font-weight:700}
+.ok{background:#dcfce7;color:#166534}.err{background:#fee2e2;color:#991b1b}.info{background:#e5f3e9;color:#166534}
+.hidden{display:none!important}
+.badge{background:#e8f5ec;border-radius:14px;padding:12px;margin:15px 0;line-height:1.8}
+.note{font-size:13px;color:#68776d;text-align:center;margin-top:15px;line-height:1.7}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sectionBtns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sectionBtns button{background:#eef4ef;color:#245331;border:1px solid #cbd7cf;margin:0}
+.sectionBtns button.active{background:#166534;color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>🪪 تسجيل بيانات الهوية الوطنية للطلاب</h1>
+<p class="sub">أدخل رقم الهوية للتحقق من بيانات الطالب</p>
+
+<div id="msg" class="msg"></div>
+
+<section id="verifyBox">
+<label for="id">رقم الهوية الوطنية</label>
+<input id="id" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="مثال: 10 أرقام تبدأ بـ 1">
+<button id="verifyBtn" onclick="verify()">التحقق من الهوية</button>
+</section>
+
+<section id="formBox" class="hidden">
+<div class="badge">
+<div><strong>اسم الطالب:</strong> <span id="studentName"></span></div>
+<div><strong>الصف الدراسي:</strong> <span id="grade"></span></div>
+</div>
+
+<form id="studentForm" method="POST"
+      action="https://script.google.com/macros/s/AKfycbyxemk9GDLJpSEpuXzAjg33W5mopSsXkdp2URH8pgUjfS6_mi8UGpApJw4L3lXOcIZkHg/exec"
+      target="saveFrame" onsubmit="prepareSubmit()">
+
+<input type="hidden" name="idNumber" id="fId">
+<input type="hidden" name="section" id="fSection">
+<input type="hidden" name="hasCard" id="fHasCard">
+<input type="hidden" name="fileData" id="fFileData">
+<input type="hidden" name="fileName" id="fFileName">
+
+<label>الفصل</label>
+<div class="sectionBtns">
+<button type="button" onclick="setSection('أ',this)">أ</button>
+<button type="button" onclick="setSection('ب',this)">ب</button>
+<button type="button" onclick="setSection('ج',this)">ج</button>
+</div>
+
+<label for="phone">رقم الجوال</label>
+<input id="phone" name="phone" inputmode="tel" maxlength="10" placeholder="05xxxxxxxx">
+
+<label>هل استخرجت الهوية الوطنية؟</label>
+<div class="sectionBtns">
+<button type="button" onclick="setCard('نعم',this)">نعم</button>
+<button type="button" onclick="setCard('لا',this)">لا</button>
+</div>
+
+<div id="fileBox" class="hidden">
+<label for="photo">صورة الهوية</label>
+<input id="photo" type="file" accept="image/*" capture="environment">
+</div>
+
+<button id="saveBtn" type="submit">حفظ البيانات</button>
+<button type="button" onclick="location.reload()" style="background:#64748b">إعادة البدء</button>
+</form>
+
+<iframe name="saveFrame" id="saveFrame" class="hidden"></iframe>
+<p class="note">لا تحتاج إلى تسجيل الدخول إلى Google. بيانات الطلاب تُتحقق منها من قاعدة البيانات الداخلية.</p>
+</section>
+</div>
+</div>
+
+<script>
+const API='https://script.google.com/macros/s/AKfycbyxemk9GDLJpSEpuXzAjg33W5mopSsXkdp2URH8pgUjfS6_mi8UGpApJw4L3lXOcIZkHg/exec';
+let currentStudent=null, section='', hasCard='';
+
+function normalize(s){
+  return String(s||'').trim().replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/\s+/g,'');
+}
+function show(text,type){
+  const m=document.getElementById('msg');
+  m.textContent=text;m.className='msg '+type;m.style.display='block';
+}
+function verify(){
+  const id=normalize(document.getElementById('id').value);
+  document.getElementById('id').value=id;
+  if(!/^1\d{9}$/.test(id)){show('فضلاً أدخل رقم هوية صحيحًا: 10 أرقام ويبدأ بـ 1.','err');return;}
+  const b=document.getElementById('verifyBtn');b.disabled=true;b.textContent='جارٍ التحقق...';
+  const cb='verifyCallback_'+Date.now();
+  window[cb]=function(r){
+    try{
+      if(r.valid){
+        currentStudent=r;
+        document.getElementById('studentName').textContent=r.studentName;
+        document.getElementById('grade').textContent=r.grade;
+        document.getElementById('fId').value=r.id;
+        document.getElementById('verifyBox').classList.add('hidden');
+        document.getElementById('formBox').classList.remove('hidden');
+        show('تم التحقق من بيانات الطالب. أكمل البيانات أدناه.','ok');
+      }else show(r.message,'err');
+    }finally{
+      b.disabled=false;b.textContent='التحقق من الهوية';
+      delete window[cb];
+      const s=document.getElementById(cb);if(s)s.remove();
+    }
+  };
+  const script=document.createElement('script');script.id=cb;
+  script.src=API+'?api=verify&id='+encodeURIComponent(id)+'&callback='+cb+'&_='+Date.now();
+  script.onerror=()=>{b.disabled=false;b.textContent='التحقق من الهوية';show('تعذر الاتصال بالخدمة. أعد المحاولة.','err');script.remove();delete window[cb];};
+  document.body.appendChild(script);
+}
+function setSection(v,el){
+  section=v;document.getElementById('fSection').value=v;
+  document.querySelectorAll('.sectionBtns button').forEach(x=>x.classList.remove('active'));el.classList.add('active');
+}
+function setCard(v,el){
+  hasCard=v;document.getElementById('fHasCard').value=v;
+  document.querySelectorAll('.sectionBtns button').forEach(x=>x.classList.remove('active'));el.classList.add('active');
+  document.getElementById('fileBox').classList.toggle('hidden',v!=='نعم');
+}
+async function prepareSubmit(){
+  if(!section){event.preventDefault();show('فضلاً اختر الفصل.','err');return;}
+  const phone=normalize(document.getElementById('phone').value);
+  document.getElementById('phone').value=phone;
+  if(!/^05\d{8}$/.test(phone)){event.preventDefault();show('فضلاً أدخل رقم جوال صحيح يبدأ بـ 05.','err');return;}
+  if(!hasCard){event.preventDefault();show('فضلاً اختر هل استخرجت الهوية أم لا.','err');return;}
+  if(hasCard==='نعم'){
+    const file=document.getElementById('photo').files[0];
+    if(!file){event.preventDefault();show('فضلاً اختر صورة الهوية.','err');return;}
+    if(file.size>8*1024*1024){event.preventDefault();show('حجم الصورة كبير جدًا. اختر صورة أصغر.','err');return;}
+    event.preventDefault();
+    show('جارٍ تجهيز الصورة والحفظ...','info');
+    try{
+      const data=await compressImage(file);
+      document.getElementById('fFileData').value=data;
+      document.getElementById('fFileName').value=file.name;
+      document.getElementById('studentForm').submit();
+      finishMessage();
+    }catch(e){show('تعذر تجهيز الصورة. حاول بصورة أخرى.','err');}
+  }else{
+    document.getElementById('fFileData').value='';
+    document.getElementById('fFileName').value='';
+    document.getElementById('saveBtn').disabled=true;
+    show('جارٍ حفظ البيانات...','info');
+    setTimeout(finishMessage,1200);
+  }
+}
+function finishMessage(){
+  document.getElementById('saveBtn').disabled=true;
+  show('تم إرسال البيانات للحفظ. يمكنك الانتظار لحظات ثم بدء تسجيل جديد.','ok');
+}
+function compressImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image(),url=URL.createObjectURL(file);
+    img.onload=()=>{
+      let w=img.width,h=img.height,max=1600;
+      if(Math.max(w,h)>max){if(w>h){h=Math.round(h*max/w);w=max}else{w=Math.round(w*max/h);h=max}}
+      const c=document.createElement('canvas');c.width=w;c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      resolve(c.toDataURL('image/jpeg',.78));URL.revokeObjectURL(url);
+    };
+    img.onerror=reject;img.src=url;
+  });
+}
+</script>
+</body>
+</html>
